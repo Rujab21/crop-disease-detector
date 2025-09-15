@@ -7,6 +7,10 @@ import os
 import cv2
 import gdown
 
+st.cache_data.clear()
+st.cache_resource.clear()
+
+
 # ---------------------------
 # Custom CSS
 # ---------------------------
