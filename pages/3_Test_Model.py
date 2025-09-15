@@ -86,12 +86,13 @@ def load_model_from_drive(file_id, filename):
 
     model = tf.keras.models.load_model(local_path, compile=False)
 
-    # 🔥 Patch if model expects 1 channel
+    # 🔹 Patch for grayscale models
     if model.input_shape[-1] == 1:
-        st.warning("⚠️ Model was saved as grayscale, patching to accept RGB input...")
-        inputs = tf.keras.Input(shape=(225, 225, 3))
-        outputs = model(inputs[..., 0:1])  # use only one channel
-        model = tf.keras.Model(inputs, outputs)
+        from tensorflow.keras import layers, models
+        inputs = layers.Input(shape=(225, 225, 3))
+        x = tf.image.rgb_to_grayscale(inputs)  # convert RGB back to 1 channel
+        outputs = model(x)
+        model = models.Model(inputs, outputs)
 
     return model
 
