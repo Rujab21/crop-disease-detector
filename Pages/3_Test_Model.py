@@ -29,7 +29,7 @@ h1,h2,h3 { color: #2c3e50; }
 # ---------------------------
 # App Title
 # ---------------------------
-st.title("Multiple Crop Disease Detector")
+st.title("Multiple Crop Disease Detector App")
 st.write("Hello User! This app analyzes crop leaves and predicts diseases.")
 
 # ---------------------------
