@@ -10,6 +10,7 @@ import gdown
 st.cache_data.clear()
 st.cache_resource.clear()
 
+
 # ---------------------------
 # Custom CSS
 # ---------------------------
@@ -75,7 +76,7 @@ crop_model = {
 }
 
 # ---------------------------
-# Cached loader from Drive (with grayscale patch)
+# Cached loader from Drive
 # ---------------------------
 @st.cache_resource
 def load_model_from_drive(file_id, filename):
@@ -83,18 +84,7 @@ def load_model_from_drive(file_id, filename):
     if not os.path.exists(local_path):
         url = f"https://drive.google.com/uc?id={file_id}"
         gdown.download(url, local_path, quiet=False)
-
-    model = tf.keras.models.load_model(local_path, compile=False)
-
-    # 🔹 Patch for grayscale models
-    if model.input_shape[-1] == 1:
-        from tensorflow.keras import layers, models
-        inputs = layers.Input(shape=(225, 225, 3))
-        x = tf.image.rgb_to_grayscale(inputs)  # convert RGB back to 1 channel
-        outputs = model(x)
-        model = models.Model(inputs, outputs)
-
-    return model
+    return tf.keras.models.load_model(local_path, compile=False)
 
 # ---------------------------
 # Helper: find last conv layer name
@@ -133,6 +123,7 @@ def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, a
 
         img_resized = img_pil.resize(input_size, Image.BILINEAR)
 
+        # ✅ Fix: force RGB
         if img_resized.mode != "RGB":
             img_resized = img_resized.convert("RGB")
 
@@ -199,6 +190,7 @@ def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, a
 def predict_disease(model, preprocess_fn, classnames, img_pil):
     input_size = model.input_shape[1:3]
 
+    # ✅ Fix: force RGB
     if img_pil.mode != "RGB":
         img_pil = img_pil.convert("RGB")
 
@@ -228,7 +220,7 @@ show_gradcam = st.checkbox("Show Grad-CAM visualization", value=True)
 
 if uploaded_file is not None:
     try:
-        img_pil = Image.open(uploaded_file).convert("RGB")
+        img_pil = Image.open(uploaded_file).convert("RGB")  # ✅ Fix
         model = load_model_from_drive(crop_model[selected]["file_id"], crop_model[selected]["filename"])
         classnames = crop_model[selected]["class_names"]
         preprocess_fn = crop_model[selected]["preprocess"]
