@@ -86,7 +86,6 @@ def load_model_from_drive(file_id, filename):
 # Helper: find last conv layer name
 # ---------------------------
 def find_last_conv_layer(model):
-    # Try common names first
     common_names = ["top_conv", "conv_pw"]
     for name in common_names:
         try:
@@ -94,8 +93,6 @@ def find_last_conv_layer(model):
             return name
         except Exception:
             pass
-
-    # Otherwise search layers in reverse for conv-like layers with 4D outputs
     for layer in reversed(model.layers):
         try:
             out_shape = layer.output_shape
@@ -120,8 +117,12 @@ def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, a
             st.warning("Model has unexpected input shape; cannot generate Grad-CAM.")
             return None, None, None
 
-        # Prepare image
         img_resized = img_pil.resize(input_size, Image.BILINEAR)
+
+        # ✅ Fix: force RGB
+        if img_resized.mode != "RGB":
+            img_resized = img_resized.convert("RGB")
+
         img_array = np.array(img_resized, dtype=np.float32)
         if img_array.ndim == 2:
             img_array = np.stack((img_array,) * 3, axis=-1)
@@ -135,14 +136,12 @@ def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, a
         pred_idx = int(np.argmax(preds[0]))
         confidence = float(preds[0][pred_idx])
 
-        # If not provided, find last conv layer
         if last_conv_layer_name is None:
             last_conv_layer_name = find_last_conv_layer(model)
         if last_conv_layer_name is None:
             st.info("Could not find a convolutional layer for Grad-CAM.")
             return None, confidence, preds[0]
 
-        # Build grad model
         grad_model = tf.keras.models.Model(
             inputs=model.input,
             outputs=[model.get_layer(last_conv_layer_name).output, model.output]
@@ -165,8 +164,7 @@ def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, a
 
         heatmap = np.sum(conv_outputs, axis=-1)
         heatmap = np.maximum(heatmap, 0)
-        heatmap_max = np.max(heatmap) if np.max(heatmap) != 0 else 1e-10
-        heatmap /= heatmap_max
+        heatmap /= np.max(heatmap) if np.max(heatmap) != 0 else 1e-10
 
         img_cv = np.array(img_resized).astype(np.uint8)
         heatmap_resized = cv2.resize(heatmap, (img_cv.shape[1], img_cv.shape[0]))
@@ -181,15 +179,24 @@ def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, a
     except Exception as ex:
         st.warning(f"Grad-CAM generation failed: {ex}")
         return None, None, None
+
 # ---------------------------
 # Prediction Function
 # ---------------------------
 def predict_disease(model, preprocess_fn, classnames, img_pil):
     input_size = model.input_shape[1:3]
+
+    # ✅ Fix: force RGB
+    if img_pil.mode != "RGB":
+        img_pil = img_pil.convert("RGB")
+
     img_pil = img_pil.resize(input_size, Image.BILINEAR)
     img_array = np.array(img_pil, dtype=np.float32)
-    if img_array.ndim==2: img_array=np.stack((img_array,)*3, axis=-1)
-    elif img_array.shape[-1]!=3: img_array=img_array[...,:3]
+    if img_array.ndim == 2:
+        img_array = np.stack((img_array,) * 3, axis=-1)
+    elif img_array.shape[-1] != 3:
+        img_array = img_array[..., :3]
+
     img_batch = np.expand_dims(img_array, axis=0)
     img_batch = preprocess_fn(img_batch)
     preds = model.predict(img_batch, verbose=0)
@@ -209,7 +216,7 @@ show_gradcam = st.checkbox("Show Grad-CAM visualization", value=True)
 
 if uploaded_file is not None:
     try:
-        img_pil = Image.open(uploaded_file).convert("RGB")
+        img_pil = Image.open(uploaded_file).convert("RGB")  # ✅ Fix
         model = load_model_from_drive(crop_model[selected]["file_id"], crop_model[selected]["filename"])
         classnames = crop_model[selected]["class_names"]
         preprocess_fn = crop_model[selected]["preprocess"]
@@ -228,8 +235,8 @@ if uploaded_file is not None:
         if show_gradcam:
             with st.spinner("Generating Grad-CAM..."):
                 last_conv = None
-                if selected=="Sugarcane":
-                    last_conv="convnext_tiny_stage_3_block_2_pointwise_conv_2"
+                if selected == "Sugarcane":
+                    last_conv = "convnext_tiny_stage_3_block_2_pointwise_conv_2"
                 gradcam_img, g_conf, preds = generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=last_conv)
 
             with col2:
