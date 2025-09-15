@@ -1,0 +1,13 @@
+# Ignore model files
+*.h5
+*.keras
+*.pkl
+*.pt
+*.onnx
+*.ckpt
+
+# Ignore other unnecessary files
+__pycache__/
+*.pyc
+.DS_Store
+.env
