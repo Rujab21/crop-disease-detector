@@ -40,7 +40,7 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 
 crop_model = {
     "Rice": {
-        "file_id": "YOUR_RICE_MODEL_FILE_ID",
+        "file_id": "1unF_iGaJtGnLBoO4SDDbAKHgEjSqrnxc",
         "filename": "rice_model_best.h5",
         "class_names": [
             'bacterial_leaf_blight', 'brown_spot', 'healthy', 'leaf_blast',
@@ -50,7 +50,7 @@ crop_model = {
         "preprocess": efficientnet.preprocess_input
     },
     "Cotton": {
-        "file_id": "YOUR_COTTON_MODEL_FILE_ID",
+        "file_id": "12IRF-aoR8-VFULzlZT0FvYtWts0jwbcE",
         "filename": "Cotton_Efficientnetb3.keras",
         "class_names": [
             'Bacterial Blight', 'Curl Virus', 'Healthy Leaf',
@@ -60,7 +60,7 @@ crop_model = {
         "preprocess": efficientnet.preprocess_input
     },
     "Sugarcane": {
-        "file_id": "YOUR_SUGARCANE_MODEL_FILE_ID",
+        "file_id": "1S8YKxAaimfNZc5pBihuWXlbeCNvpmbS_",
         "filename": "convnext_tiny_best.keras",
         "class_names": [
             'Banded Chlorosis', 'Brown Spot', 'BrownRust', 'Dried Leaves',
