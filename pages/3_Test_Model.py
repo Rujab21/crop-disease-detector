@@ -253,3 +253,4 @@ if uploaded_file is not None:
     except Exception as e:
         st.error("Error during model prediction. See details below:")
         st.exception(e)
+
