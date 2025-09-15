@@ -1,8 +1,8 @@
 streamlit
-tensorflow
+tensorflow==2.19.0
+keras==3.9.2
 numpy
 pillow
 opencv-python-headless
 matplotlib
 gdown
-
