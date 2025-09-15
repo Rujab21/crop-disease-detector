@@ -1,9 +1,8 @@
-streamlit==1.29.0
-tensorflow==2.19.0
-keras==3.9.2
-numpy==1.26.4
-pillow==10.0.1
-opencv-python-headless==4.8.1.78
-matplotlib==3.8.1
-gdown==4.8.1
-
+streamlit>=1.29,<2.0
+tensorflow>=2.19,<2.20
+keras>=3.9,<3.10
+numpy>=1.26,<1.27
+pillow>=10.0,<11
+opencv-python-headless>=4.8,<4.9
+matplotlib>=3.8,<3.9
+gdown>=4.8,<5.0
