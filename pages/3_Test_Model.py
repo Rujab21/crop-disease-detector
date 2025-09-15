@@ -7,9 +7,9 @@ import os
 import cv2
 import gdown
 
+# clear caches to avoid old cached models/behavior during debugging
 st.cache_data.clear()
 st.cache_resource.clear()
-
 
 # ---------------------------
 # Custom CSS
@@ -76,40 +76,61 @@ crop_model = {
 }
 
 # ---------------------------
-# Cached loader from Drive
+# Cached loader from Drive (more tolerant)
 # ---------------------------
 @st.cache_resource
 def load_model_from_drive(file_id, filename):
     local_path = os.path.join(MODEL_DIR, filename)
     if not os.path.exists(local_path):
         url = f"https://drive.google.com/uc?id={file_id}"
-        gdown.download(url, local_path, quiet=False)
-    return tf.keras.models.load_model(local_path, compile=False)
+        try:
+            # use fuzzy to be more permissive
+            gdown.download(url, local_path, quiet=False, fuzzy=True)
+        except Exception as ex:
+            st.error("Failed to download model from Google Drive. Make sure file permission is 'Anyone with the link'.")
+            st.exception(ex)
+            raise
+    try:
+        model = tf.keras.models.load_model(local_path, compile=False)
+        return model
+    except Exception as ex:
+        st.error("Failed to load model file. It may be incompatible with the TF version on the server.")
+        st.exception(ex)
+        raise
 
 # ---------------------------
-# Helper: find last conv layer name
+# Helper: recursive find last conv layer name
 # ---------------------------
 def find_last_conv_layer(model):
-    common_names = ["top_conv", "conv_pw"]
-    for name in common_names:
-        try:
-            _ = model.get_layer(name)
-            return name
-        except Exception:
-            pass
-    for layer in reversed(model.layers):
-        try:
-            out_shape = layer.output_shape
-        except Exception:
-            continue
-        if not out_shape:
-            continue
-        if isinstance(out_shape, (list, tuple)) and len(out_shape) >= 4:
-            lname = layer.name.lower()
-            cls = layer.__class__.__name__.lower()
-            if "conv" in lname or "conv" in cls or "depthwise" in cls:
-                return layer.name
-    return None
+    """
+    Recursively find the last convolutional (or depthwise) layer in a model,
+    even if nested inside blocks.
+    """
+    last_conv = None
+
+    def recurse(layers):
+        nonlocal last_conv
+        for layer in layers:
+            # if it's a model (nested), recurse into its layers
+            if isinstance(layer, tf.keras.Model):
+                recurse(layer.layers)
+            else:
+                try:
+                    out_shape = layer.output_shape
+                except Exception:
+                    continue
+                if not out_shape:
+                    continue
+                # out_shape may be tuple or list
+                shape = out_shape
+                if isinstance(shape, (list, tuple)) and len(shape) >= 3:
+                    # detect conv-like layers by name or class
+                    lname = getattr(layer, "name", "").lower()
+                    cls = layer.__class__.__name__.lower()
+                    if "conv" in lname or "conv" in cls or "depthwise" in cls:
+                        last_conv = layer.name
+    recurse(model.layers)
+    return last_conv
 
 # ---------------------------
 # Grad-CAM Function
@@ -121,20 +142,30 @@ def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, a
             st.warning("Model has unexpected input shape; cannot generate Grad-CAM.")
             return None, None, None
 
+        # Ensure RGB before resizing
+        if img_pil.mode != "RGB":
+            img_pil = img_pil.convert("RGB")
+
         img_resized = img_pil.resize(input_size, Image.BILINEAR)
-
-        # ✅ Fix: force RGB
-        if img_resized.mode != "RGB":
-            img_resized = img_resized.convert("RGB")
-
         img_array = np.array(img_resized, dtype=np.float32)
+
+        # DEBUG
+        st.write("DEBUG (Grad-CAM) - img_resized.mode:", img_resized.mode)
+        st.write("DEBUG (Grad-CAM) - img_array.shape:", img_array.shape)
+
+        # Guarantee 3 channels
         if img_array.ndim == 2:
             img_array = np.stack((img_array,) * 3, axis=-1)
-        elif img_array.shape[-1] != 3:
+        elif img_array.shape[-1] == 1:
+            img_array = np.concatenate([img_array, img_array, img_array], axis=-1)
+        elif img_array.shape[-1] > 3:
             img_array = img_array[..., :3]
 
         img_batch = np.expand_dims(img_array, axis=0)
         img_pp = preprocess_fn(img_batch.copy())
+
+        # More debug before predict
+        st.write("DEBUG (Grad-CAM) - model input to predict shape:", img_pp.shape)
 
         preds = model.predict(img_pp, verbose=0)
         pred_idx = int(np.argmax(preds[0]))
@@ -146,6 +177,7 @@ def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, a
             st.info("Could not find a convolutional layer for Grad-CAM.")
             return None, confidence, preds[0]
 
+        # Build grad model
         grad_model = tf.keras.models.Model(
             inputs=model.input,
             outputs=[model.get_layer(last_conv_layer_name).output, model.output]
@@ -168,7 +200,8 @@ def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, a
 
         heatmap = np.sum(conv_outputs, axis=-1)
         heatmap = np.maximum(heatmap, 0)
-        heatmap /= np.max(heatmap) if np.max(heatmap) != 0 else 1e-10
+        heatmap_max = np.max(heatmap) if np.max(heatmap) != 0 else 1e-10
+        heatmap /= heatmap_max
 
         img_cv = np.array(img_resized).astype(np.uint8)
         heatmap_resized = cv2.resize(heatmap, (img_cv.shape[1], img_cv.shape[0]))
@@ -190,19 +223,32 @@ def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, a
 def predict_disease(model, preprocess_fn, classnames, img_pil):
     input_size = model.input_shape[1:3]
 
-    # ✅ Fix: force RGB
+    # Force RGB
     if img_pil.mode != "RGB":
         img_pil = img_pil.convert("RGB")
 
     img_pil = img_pil.resize(input_size, Image.BILINEAR)
     img_array = np.array(img_pil, dtype=np.float32)
+
+    # DEBUG
+    st.write("DEBUG (Prediction) - img_pil.mode:", img_pil.mode)
+    st.write("DEBUG (Prediction) - img_array.shape before channel fix:", img_array.shape)
+
+    # Guarantee 3 channels
     if img_array.ndim == 2:
         img_array = np.stack((img_array,) * 3, axis=-1)
-    elif img_array.shape[-1] != 3:
+    elif img_array.shape[-1] == 1:
+        img_array = np.concatenate([img_array, img_array, img_array], axis=-1)
+    elif img_array.shape[-1] > 3:
         img_array = img_array[..., :3]
+
+    st.write("DEBUG (Prediction) - img_array.shape after channel fix:", img_array.shape)
 
     img_batch = np.expand_dims(img_array, axis=0)
     img_batch = preprocess_fn(img_batch)
+
+    st.write("DEBUG (Prediction) - model input shape to predict:", img_batch.shape)
+
     preds = model.predict(img_batch, verbose=0)
     top_idx = int(np.argmax(preds[0]))
     confidence = float(preds[0][top_idx])
@@ -215,12 +261,19 @@ def predict_disease(model, preprocess_fn, classnames, img_pil):
 # Streamlit Interface
 # ---------------------------
 selected = st.selectbox("Choose the crop you want to analyze:", list(crop_model.keys()))
-uploaded_file = st.file_uploader("Upload a leaf image", type=["jpg","png","jpeg"])
+uploaded_file = st.file_uploader("Upload a leaf image", type=["jpg", "png", "jpeg"])
 show_gradcam = st.checkbox("Show Grad-CAM visualization", value=True)
 
 if uploaded_file is not None:
     try:
-        img_pil = Image.open(uploaded_file).convert("RGB")  # ✅ Fix
+        # ensure upload is read as RGB early
+        img_pil = Image.open(uploaded_file)
+        st.write("DEBUG - uploaded image mode (raw):", img_pil.mode)
+        if img_pil.mode != "RGB":
+            img_pil = img_pil.convert("RGB")
+        st.write("DEBUG - uploaded image mode (after convert):", img_pil.mode)
+
+        # load model (cached)
         model = load_model_from_drive(crop_model[selected]["file_id"], crop_model[selected]["filename"])
         classnames = crop_model[selected]["class_names"]
         preprocess_fn = crop_model[selected]["preprocess"]
@@ -230,7 +283,7 @@ if uploaded_file is not None:
 
         col1, col2 = st.columns([1,1])
         with col1:
-            st.image(img_pil, caption="Processed Image", use_container_width=True)
+            st.image(img_pil, caption="Processed Image", use_column_width=True)
             st.success(f"**Prediction:** {pred_class} ({confidence*100:.2f}%)")
             st.subheader("Top 3 Predictions:")
             for name, conf in top3:
@@ -238,6 +291,7 @@ if uploaded_file is not None:
 
         if show_gradcam:
             with st.spinner("Generating Grad-CAM..."):
+                # special known last conv name for convnext (kept for reliability)
                 last_conv = None
                 if selected == "Sugarcane":
                     last_conv = "convnext_tiny_stage_3_block_2_pointwise_conv_2"
@@ -246,10 +300,11 @@ if uploaded_file is not None:
             with col2:
                 if gradcam_img is not None:
                     st.subheader("Grad-CAM Visualization")
-                    st.image(gradcam_img, caption=f"Grad-CAM: {pred_class} ({(g_conf*100):.2f}%)", use_container_width=True)
+                    st.image(gradcam_img, caption=f"Grad-CAM: {pred_class} ({(g_conf*100):.2f}%)", use_column_width=True)
                 else:
                     st.info("Grad-CAM visualization not available for this model or failed to generate.")
 
     except Exception as e:
         st.error("Error during model prediction. See details below:")
         st.exception(e)
+
