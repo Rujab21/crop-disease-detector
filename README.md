@@ -43,7 +43,7 @@ Try the app here: [Crop Disease Detector]([https://your-app-link.streamlit.app](
 
 ## 👨‍💻 Author  
 **Rujab Hussain**  
-📧 Email: your-email@example.com  
+📧 Email: Rujabhussain47@example.com  
 🌐 GitHub: [Rujab21](https://github.com/Rujab21)  
 
 ---
