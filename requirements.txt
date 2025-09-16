@@ -1,7 +1,9 @@
-tensorflow
+tensorflow==2.19.0
+keras==3.9.2
 streamlit
 opencv-python-headless
 pillow
 numpy
 gdown
+
 
