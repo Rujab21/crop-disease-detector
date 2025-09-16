@@ -44,7 +44,7 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 crop_model = {
     "Rice": {
         "file_id": "1apFPoXVHSmbIr7zNtTlrG3q-AcyAvfuD",
-        "filename": "rice_Efficientnetb3_rgb.keras",
+        "filename": "rice_model_best.h5",
         "class_names": [
             'bacterial_leaf_blight', 'brown_spot', 'healthy', 'leaf_blast',
             'leaf_scald', 'narrow_brown_spot', 'neck_blast',
@@ -54,7 +54,7 @@ crop_model = {
     },
     "Cotton": {
         "file_id": "19a3HvEKMYbyqoFHm69fUAV0REbeeWPFF",
-        "filename": "Cotton_Efficientnetb3_rgb.keras",
+        "filename": "Cotton_Efficientnetb3.keras",
         "class_names": [
             'Bacterial Blight', 'Curl Virus', 'Healthy Leaf',
             'Herbicide Growth Damage', 'Leaf Hopper Jassids',
