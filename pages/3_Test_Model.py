@@ -44,7 +44,7 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 crop_model = {
     "Rice": {
         "file_id": "1unF_iGaJtGnLBoO4SDDbAKHgEjSqrnxc",
-        "filename": "rice_model_best.h5",
+        "filename": "rice_model_best (2).h5",
         "class_names": [
             'bacterial_leaf_blight', 'brown_spot', 'healthy', 'leaf_blast',
             'leaf_scald', 'narrow_brown_spot', 'neck_blast',
