@@ -10,7 +10,6 @@ import gdown
 st.cache_data.clear()
 st.cache_resource.clear()
 
-
 # ---------------------------
 # Custom CSS
 # ---------------------------
@@ -76,7 +75,7 @@ crop_model = {
 }
 
 # ---------------------------
-# Cached loader from Drive
+# Cached loader from Drive with RGB patch
 # ---------------------------
 @st.cache_resource
 def load_model_from_drive(file_id, filename):
@@ -84,7 +83,17 @@ def load_model_from_drive(file_id, filename):
     if not os.path.exists(local_path):
         url = f"https://drive.google.com/uc?id={file_id}"
         gdown.download(url, local_path, quiet=False)
-    return tf.keras.models.load_model(local_path, compile=False)
+    
+    # Load the model
+    model = tf.keras.models.load_model(local_path, compile=False)
+    
+    # Patch grayscale models to RGB if needed
+    if model.input_shape[-1] == 1:
+        inputs = tf.keras.Input(shape=(model.input_shape[1], model.input_shape[2], 3))
+        outputs = model(inputs[..., 0:1])  # feed only the single channel internally
+        model = tf.keras.Model(inputs, outputs)
+    
+    return model
 
 # ---------------------------
 # Helper: find last conv layer name
@@ -117,68 +126,45 @@ def find_last_conv_layer(model):
 def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, alpha=0.4):
     try:
         input_size = model.input_shape[1:3]
-        if input_size is None or len(input_size) != 2:
-            st.warning("Model has unexpected input shape; cannot generate Grad-CAM.")
-            return None, None, None
-
         img_resized = img_pil.resize(input_size, Image.BILINEAR)
-
-        # ✅ Fix: force RGB
         if img_resized.mode != "RGB":
             img_resized = img_resized.convert("RGB")
-
         img_array = np.array(img_resized, dtype=np.float32)
         if img_array.ndim == 2:
             img_array = np.stack((img_array,) * 3, axis=-1)
         elif img_array.shape[-1] != 3:
             img_array = img_array[..., :3]
-
         img_batch = np.expand_dims(img_array, axis=0)
         img_pp = preprocess_fn(img_batch.copy())
-
         preds = model.predict(img_pp, verbose=0)
         pred_idx = int(np.argmax(preds[0]))
         confidence = float(preds[0][pred_idx])
-
         if last_conv_layer_name is None:
             last_conv_layer_name = find_last_conv_layer(model)
         if last_conv_layer_name is None:
-            st.info("Could not find a convolutional layer for Grad-CAM.")
             return None, confidence, preds[0]
-
         grad_model = tf.keras.models.Model(
             inputs=model.input,
             outputs=[model.get_layer(last_conv_layer_name).output, model.output]
         )
-
         with tf.GradientTape() as tape:
             conv_outputs, predictions = grad_model(img_pp)
             loss = predictions[:, pred_idx]
-
         grads = tape.gradient(loss, conv_outputs)
-        if grads is None:
-            st.info("Gradients are None — Grad-CAM not available for this model.")
-            return None, confidence, preds[0]
-
-        pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2)).numpy()
+        pooled_grads = tf.reduce_mean(grads, axis=(0,1,2)).numpy()
         conv_outputs = conv_outputs[0].numpy()
-
         for i in range(pooled_grads.shape[-1]):
             conv_outputs[..., i] *= pooled_grads[i]
-
         heatmap = np.sum(conv_outputs, axis=-1)
         heatmap = np.maximum(heatmap, 0)
         heatmap /= np.max(heatmap) if np.max(heatmap) != 0 else 1e-10
-
         img_cv = np.array(img_resized).astype(np.uint8)
         heatmap_resized = cv2.resize(heatmap, (img_cv.shape[1], img_cv.shape[0]))
         heatmap_uint8 = np.uint8(255 * heatmap_resized)
         heatmap_color = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
         heatmap_rgb = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB)
-
-        superimposed = cv2.addWeighted(img_cv, 1 - alpha, heatmap_rgb, alpha, 0)
+        superimposed = cv2.addWeighted(img_cv, 1-alpha, heatmap_rgb, alpha, 0)
         superimposed = np.clip(superimposed, 0, 255).astype(np.uint8)
-
         return superimposed, confidence, preds[0]
     except Exception as ex:
         st.warning(f"Grad-CAM generation failed: {ex}")
@@ -189,18 +175,14 @@ def generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=None, a
 # ---------------------------
 def predict_disease(model, preprocess_fn, classnames, img_pil):
     input_size = model.input_shape[1:3]
-
-    # ✅ Fix: force RGB
     if img_pil.mode != "RGB":
         img_pil = img_pil.convert("RGB")
-
     img_pil = img_pil.resize(input_size, Image.BILINEAR)
     img_array = np.array(img_pil, dtype=np.float32)
     if img_array.ndim == 2:
         img_array = np.stack((img_array,) * 3, axis=-1)
     elif img_array.shape[-1] != 3:
         img_array = img_array[..., :3]
-
     img_batch = np.expand_dims(img_array, axis=0)
     img_batch = preprocess_fn(img_batch)
     preds = model.predict(img_batch, verbose=0)
@@ -220,7 +202,7 @@ show_gradcam = st.checkbox("Show Grad-CAM visualization", value=True)
 
 if uploaded_file is not None:
     try:
-        img_pil = Image.open(uploaded_file).convert("RGB")  # ✅ Fix
+        img_pil = Image.open(uploaded_file).convert("RGB")
         model = load_model_from_drive(crop_model[selected]["file_id"], crop_model[selected]["filename"])
         classnames = crop_model[selected]["class_names"]
         preprocess_fn = crop_model[selected]["preprocess"]
@@ -242,7 +224,6 @@ if uploaded_file is not None:
                 if selected == "Sugarcane":
                     last_conv = "convnext_tiny_stage_3_block_2_pointwise_conv_2"
                 gradcam_img, g_conf, preds = generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=last_conv)
-
             with col2:
                 if gradcam_img is not None:
                     st.subheader("Grad-CAM Visualization")
@@ -253,4 +234,3 @@ if uploaded_file is not None:
     except Exception as e:
         st.error("Error during model prediction. See details below:")
         st.exception(e)
-
