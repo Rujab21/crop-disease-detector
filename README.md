@@ -24,12 +24,12 @@ This project helps farmers and researchers quickly identify crop diseases from l
 ---
 
 ## Live Demo
-Try the app here: [Crop Disease Detector]([https://your-app-link.streamlit.app](https://crop-disease-detector-buqheylyrg3juvgd2sthmr.streamlit.app/))
+Try the app here: [Crop Disease Detector](https://crop-disease-detector-buqheylyrg3juvgd2sthmr.streamlit.app/)
 
 ---
 
 ## How to Use
-1. Open the [Live Demo]([https://your-app-link.streamlit.app](https://crop-disease-detector-buqheylyrg3juvgd2sthmr.streamlit.app/))
+1. Open the [Live Demo](https://crop-disease-detector-buqheylyrg3juvgd2sthmr.streamlit.app/)
 2. Upload an image of a crop leaf
 3. View the predicted disease instantly
 
