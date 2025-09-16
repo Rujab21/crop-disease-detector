@@ -5,7 +5,7 @@ This project helps farmers and researchers quickly identify crop diseases from l
 
 ---
 
-## 🚀 Features
+## Features
 - Upload a leaf image
 - Get instant disease predictions
 - Models used: ConvNeXt Tiny & EfficientNet
@@ -13,7 +13,7 @@ This project helps farmers and researchers quickly identify crop diseases from l
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 - **Python**
 - **TensorFlow / Keras**
 - **Streamlit**
@@ -23,7 +23,7 @@ This project helps farmers and researchers quickly identify crop diseases from l
 
 ---
 
-## 🌍 Live Demo
+## Live Demo
 Try the app here: [Crop Disease Detector]([https://your-app-link.streamlit.app](https://crop-disease-detector-buqheylyrg3juvgd2sthmr.streamlit.app/))
 
 ---
@@ -41,10 +41,10 @@ Try the app here: [Crop Disease Detector]([https://your-app-link.streamlit.app](
 
 ---
 
-## 👨‍💻 Author  
+## Author  
 **Rujab Hussain**  
-📧 Email: Rujabhussain47@example.com  
-🌐 GitHub: [Rujab21](https://github.com/Rujab21)  
+Email: Rujabhussain47@example.com  
+GitHub: [Rujab21](https://github.com/Rujab21)  
 
 ---
 
@@ -53,7 +53,7 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 
 ---
 
-## ⚙️ Run Locally (For Developers)
+## Run Locally (For Developers)
 If you want to run the project locally:
 
 ```bash
