@@ -203,34 +203,53 @@ show_gradcam = st.checkbox("Show Grad-CAM visualization", value=True)
 if uploaded_file is not None:
     try:
         img_pil = Image.open(uploaded_file).convert("RGB")
-        model = load_model_from_drive(crop_model[selected]["file_id"], crop_model[selected]["filename"])
+        model = load_model_from_drive(
+            crop_model[selected]["file_id"],
+            crop_model[selected]["filename"]
+        )
         classnames = crop_model[selected]["class_names"]
         preprocess_fn = crop_model[selected]["preprocess"]
 
         with st.spinner("Analyzing image..."):
-            pred_class, confidence, top3, raw_preds = predict_disease(model, preprocess_fn, classnames, img_pil)
+            pred_class, confidence, top3, raw_preds = predict_disease(
+                model, preprocess_fn, classnames, img_pil
+            )
 
-        col1, col2 = st.columns([1,1])
+        # Put images side by side
+        col1, col2 = st.columns(2)
+        display_size = (300, 300)  # force equal size for alignment
+
         with col1:
-            st.image(img_pil, caption="Processed Image", use_container_width=True)
-            st.success(f"**Prediction:** {pred_class} ({confidence*100:.2f}%)")
-            st.subheader("Top 3 Predictions:")
-            for name, conf in top3:
-                st.write(f"{name}: {conf*100:.2f}%")
+            st.image(
+                img_pil.resize(display_size),
+                caption="Uploaded Image",
+                use_container_width=False
+            )
 
-        if show_gradcam:
-            with st.spinner("Generating Grad-CAM..."):
-                last_conv = None
-                if selected == "Sugarcane":
-                    last_conv = "convnext_tiny_stage_3_block_2_pointwise_conv_2"
-                gradcam_img, g_conf, preds = generate_gradcam(model, img_pil, preprocess_fn, last_conv_layer_name=last_conv)
-            with col2:
+        with col2:
+            if show_gradcam:
+                with st.spinner("Generating Grad-CAM..."):
+                    last_conv = None
+                    if selected == "Sugarcane":
+                        last_conv = "convnext_tiny_stage_3_block_2_pointwise_conv_2"
+                    gradcam_img, g_conf, preds = generate_gradcam(
+                        model, img_pil, preprocess_fn,
+                        last_conv_layer_name=last_conv
+                    )
+
                 if gradcam_img is not None:
-                    st.subheader("Grad-CAM Visualization")
-                    st.image(gradcam_img, caption=f"Grad-CAM: {pred_class} ({(g_conf*100):.2f}%)", use_container_width=True)
+                    st.image(
+                        Image.fromarray(gradcam_img).resize(display_size),
+                        caption=f"Grad-CAM: {pred_class} ({(g_conf*100):.2f}%)",
+                        use_container_width=False
+                    )
                 else:
-                    st.info("Grad-CAM visualization not available for this model or failed to generate.")
+                    st.info("Grad-CAM visualization not available.")
+
+        # ✅ Only main prediction shown
+        st.success(f"**Prediction:** {pred_class} ({confidence*100:.2f}%)")
 
     except Exception as e:
         st.error("Error during model prediction. See details below:")
         st.exception(e)
+
